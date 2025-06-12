@@ -2,7 +2,7 @@
 xhost +local:root
 IMAGE="omnilrs-navigation:v1.0"
 NAME="omnilrs-navigation-container"
-DOCKER_RUN_CMD="docker run -it --rm --privileged \
+DOCKER_RUN_CMD="docker run -i --rm --privileged \
                 --gpus all \
                 --runtime=nvidia \
                 -e NVIDIA_VISIBLE_DEVICES=all \
