@@ -1,0 +1,9 @@
+digraph G {
+"cpt7_imu" -> "enu_origin"[label=" Broadcaster: default_authority\nAverage rate: 200.514\nBuffer length: 1.945\nMost recent transform: 1733733288.945\nOldest transform: 1733733287.0\n"];
+"hesai_lidar" -> "dlio_map"[label=" Broadcaster: default_authority\nAverage rate: 10.667\nBuffer length: 1.5\nMost recent transform: 1733733288.898199\nOldest transform: 1733733287.398226\n"];
+"hesai_lidar" -> "dlio_odom"[label=" Broadcaster: default_authority\nAverage rate: 100.725\nBuffer length: 1.38\nMost recent transform: 1733733288.938605\nOldest transform: 1733733287.558606\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1758291234.7841644"[ shape=plaintext ] ;
+}->"hesai_lidar";
+}

@@ -2,6 +2,11 @@
 xhost +local:root
 IMAGE="omnilrs-navigation:v1.0"
 NAME="omnilrs-navigation-container"
+
+# Host path where your bags live:
+HOST_BAGS="/home/yhofmann/git/grand_tour_dataset"
+
+
 DOCKER_RUN_CMD="docker run -it --rm --privileged \
                 --gpus all \
                 --runtime=nvidia \
@@ -12,14 +17,16 @@ DOCKER_RUN_CMD="docker run -it --rm --privileged \
                 -e "PRIVACY_CONSENT=Y" \
                 -e "DISPLAY=$DISPLAY" \
                 -v $HOME/.Xauthority:/root/.Xauthority \
-                -v /dev/:/dev/ \
                 -v $PWD/docker:/docker \
                 -v $PWD/humble_ws:/ros2_ws \
+                -v "$HOST_BAGS":"$HOST_BAGS":rw \
+                --env DISPLAY=$DISPLAY
+                --volume /tmp/.X11-unix:/tmp/.X11-unix \
                 --network=host \
                 --ipc=host \
                 --name $NAME \
                 $IMAGE"
-
+#-v /dev/:/dev/ \
 # Create runtime directory
 mkdir -p /tmp/runtime-docker
 
