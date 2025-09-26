@@ -1,0 +1,9 @@
+digraph G {
+"Imu_Sensor" -> "global_vio"[label=" Broadcaster: default_authority\nAverage rate: 445.894\nBuffer length: 2.384\nMost recent transform: 1758640693.145699\nOldest transform: 1758640690.761726\n"];
+"Imu_Sensor" -> "cam1"[label=" Broadcaster: default_authority\nAverage rate: 445.905\nBuffer length: 2.384\nMost recent transform: 1758640693.145724\nOldest transform: 1758640690.761806\n"];
+"Imu_Sensor" -> "cam0"[label=" Broadcaster: default_authority\nAverage rate: 445.864\nBuffer length: 2.382\nMost recent transform: 1758640693.143709\nOldest transform: 1758640690.761818\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1758640693.1605186"[ shape=plaintext ] ;
+}->"Imu_Sensor";
+}
