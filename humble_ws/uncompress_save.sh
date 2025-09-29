@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
+if [[ "${DEBUG:-0}" == "1" ]]; then
+  export PS4='+ [${BASH_SOURCE##*/}:${LINENO}] '
+  set -x
+fi
 # Usage:
 #   ./uncompress_save.sh [--mode base|suffix] [--suffix NAME] [--keep-compressed] [--force] INPUT_BAG_DIR [OUTPUT_BAG_DIR]
 #
@@ -84,6 +87,13 @@ if [[ $FORCE -eq 0 ]]; then
     exit 1
   fi
 fi
+
+# --- Performance knobs  ---
+READ_AHEAD=${READ_AHEAD:-2000000000}                 # Player: Vorpuffer
+MAX_CACHE_BYTES=${MAX_CACHE_BYTES:-8589934592}  # Recorder: Cache (8 GiB)
+PLAY_RATE=${PLAY_RATE:-1.0}                     # Abspielrate (1.0 = Echtzeit)
+
+
 
 TMPDIR="$(mktemp -d)"
 COMPRESSED_TXT="$TMPDIR/compressed.txt"
