@@ -89,10 +89,14 @@ if [[ $FORCE -eq 0 ]]; then
 fi
 
 # --- Performance knobs  ---
-READ_AHEAD=${READ_AHEAD:-2000000000}                 # Player: Vorpuffer
-MAX_CACHE_BYTES=${MAX_CACHE_BYTES:-8589934592}  # Recorder: Cache (8 GiB)
-PLAY_RATE=${PLAY_RATE:-1.0}                     # Abspielrate (1.0 = Echtzeit)
+# Player read-ahead queue (messages)
+: "${READ_AHEAD_MSGS:=50000}"
 
+# Recorder cache (bytes)
+: "${REC_MAX_CACHE_BYTES:=8589934592}"   # 8 GiB default
+
+# Playback rate (1.0 = realtime)
+: "${PLAY_RATE:=1.0}"
 
 
 TMPDIR="$(mktemp -d)"
@@ -196,8 +200,17 @@ if [[ $KEEP_COMPRESSED -eq 1 ]]; then
   for t in "${COMPRESSED_TOPICS[@]}"; do REC_TOPICS+=("$t"); done
 fi
 
+
+#echo "[i] Recording ${#REC_TOPICS[@]} topics to: $OUTPUT_BAG"
+#ros2 bag record -o "$OUTPUT_BAG" "${REC_TOPICS[@]}" &
+#REC_PID=$!
+#echo "[i] Recorder PID: $REC_PID"
+
 echo "[i] Recording ${#REC_TOPICS[@]} topics to: $OUTPUT_BAG"
-ros2 bag record -o "$OUTPUT_BAG" "${REC_TOPICS[@]}" &
+ros2 bag record \
+  -o "$OUTPUT_BAG" \
+  --max-cache-size "$REC_MAX_CACHE_BYTES" \
+  "${REC_TOPICS[@]}" &
 REC_PID=$!
 echo "[i] Recorder PID: $REC_PID"
 
@@ -249,7 +262,9 @@ sleep 2
 # --- Play once (no loop) ---
 echo "[i] Replaying input bag..."
 set +e
-ros2 bag play "$INPUT_BAG"
+ros2 bag play "$INPUT_BAG" \
+  --read-ahead-queue-size "$READ_AHEAD_MSGS" \
+  -r "$PLAY_RATE"
 PLAY_RC=$?
 set -e
 

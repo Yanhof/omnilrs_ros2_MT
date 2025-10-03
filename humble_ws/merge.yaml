@@ -1,4 +1,4 @@
 output_bags:
-- uri: /home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted/construction/alphasense_all_imus_60s
+- uri: /home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted/construction/full_zed2i_all_imus
   all_topics: true
   all_services: true

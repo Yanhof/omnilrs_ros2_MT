@@ -6,7 +6,7 @@ from rclpy.serialization import deserialize_message, serialize_message
 from rosbag2_py import SequentialReader, SequentialWriter, StorageOptions, ConverterOptions, TopicMetadata
 
 # ---- CONFIG: set your input bag folder here ----
-INPUT_BAG  = "/home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted/construction/merged_stim320_zed2_60s_uncompressed"
+INPUT_BAG  = "/home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted/construction/HDR/full_hdr_all_imus_uncompressed"
 OUTPUT_BAG = INPUT_BAG + "_mono8"
 
 # Image topics to convert (keep names, only content becomes mono8)
