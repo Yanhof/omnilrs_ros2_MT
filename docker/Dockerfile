@@ -49,6 +49,9 @@ ros-${ROS_DISTRO}-spatio-temporal-voxel-layer
 # Install foxglove bridge
 RUN apt install -y ros-$ROS_DISTRO-foxglove-bridge
 
+# ✅ Install MCAP bag storage plugin
+RUN apt-get update && apt-get install -y ros-$ROS_DISTRO-rosbag2-storage-mcap
+
 # Install octomap
 # RUN apt-get install -y ros-${ROS_DISTRO}-octomap-mapping
 

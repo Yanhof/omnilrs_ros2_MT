@@ -5,7 +5,7 @@ NAME="omnilrs-navigation-container"
 
 # Host path where your bags live:
 HOST_BAGS="/home/yhofmann/git/grand_tour_dataset"
-
+#OPEN_VINS="/home/yhofmann/worksapce/catkin_ws"
 
 DOCKER_RUN_CMD="docker run -it --rm --privileged \
                 --gpus all \

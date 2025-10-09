@@ -8,8 +8,9 @@ from cv_bridge import CvBridge
 class ImageSaver(Node):
     def __init__(self, topic, out_dir, limit=None, duration=None, bgr=False, inactivity_timeout=5.0):
         super().__init__('image_saver')
+        # Strip any trailing whitespace from the output directory path
         self.topic = topic
-        self.out_dir = out_dir
+        self.out_dir = out_dir.strip()
         self.limit = limit
         self.duration = duration
         self.start_time = time.time()
@@ -18,6 +19,7 @@ class ImageSaver(Node):
         self.bridge = CvBridge()
         self.count = 0
         self.bgr = bgr
+        self.shutdown_requested = False
         os.makedirs(self.out_dir, exist_ok=True)
 
         # --- auto-detect type for this topic ---
@@ -82,15 +84,21 @@ class ImageSaver(Node):
 
         if self.limit and self.count >= self.limit:
             self.get_logger().info(f"Reached limit {self.limit}, shutting down.")
-            rclpy.shutdown()
+            # Signal to main thread to shutdown
+            self.get_logger().info(f"Images saved to '{self.out_dir}'")
+            self._request_shutdown()
 
+    def _request_shutdown(self):
+        """Signal that the node should be shut down gracefully"""
+        self.shutdown_requested = True
+    
     def watchdog(self):
         if self.duration and (time.time() - self.start_time) > self.duration:
             self.get_logger().info("Time limit reached, shutting down.")
-            rclpy.shutdown()
+            self._request_shutdown()
         if (time.time() - self.last_msg_time) > self.inactivity_timeout and self.count == 0:
             self.get_logger().warn("No messages received. Check topic name / type / QoS. Shutting down.")
-            rclpy.shutdown()
+            self._request_shutdown()
 
 def main():
     import argparse
@@ -105,10 +113,18 @@ def main():
     rclpy.init()
     node = ImageSaver(args.topic, args.out, args.limit, args.duration, args.bgr)
     try:
-        rclpy.spin(node)
+        while rclpy.ok() and not node.shutdown_requested:
+            rclpy.spin_once(node)
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt detected, shutting down gracefully...")
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception as e:
+            print(f"Error during shutdown: {e}")
+            pass
 
 if __name__ == '__main__':
     main()

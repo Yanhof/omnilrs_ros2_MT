@@ -27,6 +27,7 @@
 #  - The script does two passes: quick scan for time bounds, then filtered copy.
 
 import argparse
+from csv import reader
 import sys
 import os
 from typing import Set, Optional, Tuple
@@ -53,7 +54,7 @@ def compute_bag_time_bounds(uri: str, storage_id: str = "sqlite3") -> Tuple[int,
     """Return (first_ts, last_ts) in nanoseconds by scanning the bag once."""
     reader = rosbag2_py.SequentialReader()
     storage_opts = rosbag2_py.StorageOptions(uri=uri, storage_id=storage_id)
-    conv_opts = rosbag2_py.ConverterOptions("", "")
+    conv_opts = rosbag2_py.ConverterOptions("cdr", "cdr")
     reader.open(storage_opts, conv_opts)
 
     first_ts = None
@@ -163,7 +164,7 @@ def copy_filtered(
 ) -> None:
     reader = rosbag2_py.SequentialReader()
     storage_in = rosbag2_py.StorageOptions(uri=input_uri, storage_id=storage_id)
-    conv = rosbag2_py.ConverterOptions("", "")
+    conv = rosbag2_py.ConverterOptions("cdr", "cdr")
     reader.open(storage_in, conv)
 
     writer = rosbag2_py.SequentialWriter()
@@ -241,7 +242,7 @@ def main():
         output_uri = args.output
 
     # First pass: bag time bounds
-    bag_first_ns, bag_last_ns = compute_bag_time_bounds(args.input)
+    bag_first_ns, bag_last_ns = compute_bag_time_bounds(args.input, args.storage_id)
     print(f"[INFO] Bag time span: {ns_to_sec(bag_first_ns):.6f}s → {ns_to_sec(bag_last_ns):.6f}s "
           f"(Δ {ns_to_sec(bag_last_ns - bag_first_ns):.6f}s)")
 
@@ -255,7 +256,7 @@ def main():
     # Prepare reader to discover topics (second reader instance created in copy)
     reader = rosbag2_py.SequentialReader()
     reader.open(rosbag2_py.StorageOptions(uri=args.input, storage_id=args.storage_id),
-                rosbag2_py.ConverterOptions("", ""))
+                rosbag2_py.ConverterOptions("cdr", "cdr"))
 
     selected_topics = build_topic_sets(reader, includes, excludes)
     if not selected_topics:
