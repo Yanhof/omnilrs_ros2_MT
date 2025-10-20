@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # --- adjust these two paths ---
-IN_ROOT="/home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted_sqlite"
-OUT_ROOT="/home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted_mcap"
+IN_ROOT="/home/yhofmann/git/grand_tour_dataset/clean_construction_data_processing/ros2_bags/raw_data"
+OUT_ROOT="/home/yhofmann/git/grand_tour_dataset/clean_construction_data_processing/ros2_bags/MCAP_raw_data"
 
 # ----- safe ROS 2 sourcing with 'set -u' -----
 set +u

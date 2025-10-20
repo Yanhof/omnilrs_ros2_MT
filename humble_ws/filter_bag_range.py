@@ -50,7 +50,7 @@ def sec_to_ns(t_s: float) -> int:
     return int(round(t_s * 1e9))
 
 
-def compute_bag_time_bounds(uri: str, storage_id: str = "sqlite3") -> Tuple[int, int]:
+def compute_bag_time_bounds(uri: str, storage_id: str = "mcap") -> Tuple[int, int]:
     """Return (first_ts, last_ts) in nanoseconds by scanning the bag once."""
     reader = rosbag2_py.SequentialReader()
     storage_opts = rosbag2_py.StorageOptions(uri=uri, storage_id=storage_id)
@@ -160,7 +160,7 @@ def copy_filtered(
     selected_topics: Set[str],
     t_start_ns: int,
     t_end_ns: int,
-    storage_id: str = "sqlite3",
+    storage_id: str = "mcap",
 ) -> None:
     reader = rosbag2_py.SequentialReader()
     storage_in = rosbag2_py.StorageOptions(uri=input_uri, storage_id=storage_id)
@@ -215,7 +215,7 @@ def main():
     p = argparse.ArgumentParser(description="Filter a ROS 2 bag by topics and time range / percentage.")
     p.add_argument("-i", "--input", required=True, help="Input bag folder (URI).")
     p.add_argument("-o", "--output", required=True, help="Output bag folder (URI).")
-    p.add_argument("--storage-id", default="sqlite3", help="Storage plugin id (default: sqlite3).")
+    p.add_argument("--storage-id", default="mcap", help="Storage plugin id (default: mcap).")
 
     grp_topics = p.add_argument_group("Topic selection")
     grp_topics.add_argument("--include", action="append", default=[],

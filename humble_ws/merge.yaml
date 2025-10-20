@@ -1,4 +1,5 @@
 output_bags:
-- uri: /home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted_mcap/all_imus_mcap
+- uri: /home/yhofmann/git/grand_tour_dataset/clean_construction_data_processing/ros2_bags/final_bags/alphasense_80s_imu_including_Front_center
+  storage_id: mcap
   all_topics: true
   all_services: true

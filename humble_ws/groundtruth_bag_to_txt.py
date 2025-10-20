@@ -21,7 +21,7 @@ def extract_pointstamped(bag_path: str, topic: str, out_file: str) -> int:
         return 2
     print(f"[INFO] Bag path: {bag_path}")
     # Setup reader
-    storage_options = StorageOptions(uri=bag_path, storage_id='sqlite3')
+    storage_options = StorageOptions(uri=bag_path, storage_id='mcap')
     converter_options = ConverterOptions(input_serialization_format='cdr',
                                          output_serialization_format='cdr')
     reader = SequentialReader()

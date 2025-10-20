@@ -8,22 +8,14 @@ from cv_bridge import CvBridge
 from rclpy.serialization import deserialize_message, serialize_message
 from rosbag2_py import SequentialReader, SequentialWriter, StorageOptions, ConverterOptions, TopicMetadata
 
-# ---- CONFIG: set your input bag folder here ----
+# Default bag path - can be overridden by command line arguments
+DEFAULT_INPUT_BAG = "/home/yhofmann/git/grand_tour_dataset/clean_construction_data_processing/ros2_bags/intermediary_bags/hdr_80s_imu"
 
-INPUT_BAG  = "/home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted/construction/zed2i/zed2i_all_imu_60s"
-#INPUT_BAG  = "/home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted/construction/HDR/full_hdr_all_imus"
+# These will be initialized properly in the main function
+INPUT_BAG = None
+OUTPUT_BAG = None
 
-#INPUT_BAG  = "/home/yhofmann/git/grand_tour_dataset/examples_ros1/ros2_bags_converted/construction/alphasense_bags/alphasense_all_imus_60s"
-OUTPUT_BAG = INPUT_BAG + "_uncompressed_mono8_sqlite"
-# Image topics to convert (keep names, only content becomes mono8)
-
-#LEFT_IMG  = "/boxi/hdr/front/image_raw/compressed"
-#RIGHT_IMG = "/boxi/hdr/rear/image_raw/compressed"
-LEFT_IMG  = "/boxi/zed2i/left/image_raw/compressed"
-RIGHT_IMG = "/boxi/zed2i/right/image_raw/compressed"
-
-#LEFT_IMG  = "/boxi/alphasense/front_left/image_raw/compressed"
-#RIGHT_IMG = "/boxi/alphasense/front_right/image_raw/compressed"
+# Automatic topic detection is enabled - no need to specify topics manually
 
 bridge = CvBridge()
 
@@ -95,15 +87,25 @@ def uncompress_image(compressed_img_msg):
     img_msg.data = cv_image.tobytes()
     return img_msg
 
-def main():
-    if not os.path.isdir(INPUT_BAG):
-        raise SystemExit(f"Input bag not found: {INPUT_BAG}")
-    if os.path.exists(OUTPUT_BAG):
-        raise SystemExit(f"Output bag already exists: {OUTPUT_BAG}")
+def derive_output_path(input_bag: str, suffix: str = "_uncompressed_mono8_mcap") -> str:
+    # Normalize to remove trailing slashes
+    norm = os.path.normpath(input_bag)
+    parent = os.path.dirname(norm)          # parent of the input folder
+    base   = os.path.basename(norm)         # name of the input folder
+    return os.path.join(parent, f"{base}{suffix}")
+
+def main(input_bag, output_bag):
+    if not os.path.isdir(input_bag):
+        raise SystemExit(f"Input bag not found: {input_bag}")
+    if os.path.exists(output_bag):
+        raise SystemExit(f"Output bag already exists: {output_bag}")
+        
+    print(f"Processing bag: {input_bag}")
+    print(f"Output will be saved to: {output_bag}")
 
     reader = SequentialReader()
     reader.open(
-        StorageOptions(uri=INPUT_BAG, storage_id='sqlite3'),
+        StorageOptions(uri=input_bag, storage_id='mcap'),
         ConverterOptions(input_serialization_format='cdr', output_serialization_format='cdr')
     )
 
@@ -111,9 +113,19 @@ def main():
     type_map = {t.name: t.type for t in topics}
     msg_cls_cache = {}
 
-        # Define new topic mappings for uncompressed images
+    # Automatically find all compressed image topics
+    compressed_topics = []
+    for topic in topics:
+        if topic.type == 'sensor_msgs/msg/CompressedImage':
+            compressed_topics.append(topic.name)
+    
+    print(f"Found {len(compressed_topics)} compressed image topics:")
+    for topic in compressed_topics:
+        print(f"  {topic}")
+        
+    # Define new topic mappings for uncompressed images
     topic_remapping = {}
-    for topic in (LEFT_IMG, RIGHT_IMG):
+    for topic in compressed_topics:
         if "/compressed" in topic:
             new_topic = topic.replace("/compressed", "/uncompressed")
         else:
@@ -128,7 +140,7 @@ def main():
     # Open writer
     writer = SequentialWriter()
     writer.open(
-        StorageOptions(uri=OUTPUT_BAG, storage_id='mcap'),
+        StorageOptions(uri=output_bag, storage_id='mcap'),
         ConverterOptions(input_serialization_format='cdr', output_serialization_format='cdr')
     )
 
@@ -162,11 +174,9 @@ def main():
             MsgType = msg_cls_cache[ros_type]
             msg = deserialize_message(data, MsgType)
 
-            if topic in (LEFT_IMG, RIGHT_IMG):
+            if topic in topic_remapping:  # This is a compressed image topic we want to convert
                 if ros_type == 'sensor_msgs/msg/CompressedImage':
                     try:
-                        original_msg = msg
-
                         # First uncompress the image
                         uncompressed_msg = uncompress_image(msg)
                         # Then convert to mono8 using existing function
@@ -174,19 +184,38 @@ def main():
                             uncompressed_msg = to_mono8(uncompressed_msg)
                     except Exception as e:
                         print(f"[WARN] uncompress/convert failed on {topic} @ {t}: {e} (keeping original)")
+                        continue  # Skip this message if conversion fails
+                    
                     # Write uncompressed to new topic
                     writer.write(topic_remapping[topic], 
                                 serialize_message(uncompressed_msg), 
                                 int(uncompressed_msg.header.stamp.sec * 1e9 + uncompressed_msg.header.stamp.nanosec))
-                        
-                    # Write original compressed to original topic
-                    writer.write(topic, 
-                                serialize_message(original_msg), 
-                                int(original_msg.header.stamp.sec * 1e9 + original_msg.header.stamp.nanosec))
+
             writer.write(topic, serialize_message(msg), int(msg.header.stamp.sec * 1e9 + msg.header.stamp.nanosec))
             pbar.update(1)
 
-    print(f"Done. New bag: {OUTPUT_BAG}")
+    print(f"Done. New bag: {output_bag}")
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Uncompress and convert image topics to mono8')
+    parser.add_argument('--input', '-i', help='Input bag directory path')
+    parser.add_argument('--output', '-o', help='Output bag directory path')
+    
+    args = parser.parse_args()
+    
+    # Set input bag
+    input_bag = args.input if args.input else DEFAULT_INPUT_BAG
+    
+    # Set output bag
+    if args.output:
+        output_bag = args.output
+    else:
+        output_bag = derive_output_path(input_bag)
+
+    print(f"[paths] parent: {os.path.dirname(os.path.normpath(input_bag))}")
+    print(f"[paths] input_basename: {os.path.basename(os.path.normpath(input_bag))}")
+    print(f"[paths] output_bag: {output_bag}")
+    
+    main(input_bag, output_bag)
