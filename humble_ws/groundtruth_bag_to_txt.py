@@ -80,8 +80,8 @@ def main():
         description="Extract PointStamped to TXT with timestamp, position, and zeroed quaternion."
     )
     ap.add_argument("bag_dir", help="Path to the ROS 2 bag directory (folder containing .db3 and metadata.yaml)")
-    ap.add_argument("--topic", default="/boxi/ap20/prism_position",
-                    help="PointStamped topic to read (default: /boxi/ap20/prism_position)")
+    ap.add_argument("--topic", default="/gt_box/ap20/prism_position",
+                    help="PointStamped topic to read (default: /gt_box/ap20/prism_position)")
     ap.add_argument("-o", "--out", default=None,
                 help="Output .txt path (default: saved next to the bag folder)")
     args = ap.parse_args()

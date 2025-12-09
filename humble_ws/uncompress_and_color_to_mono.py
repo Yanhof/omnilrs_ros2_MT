@@ -15,6 +15,30 @@ DEFAULT_INPUT_BAG = "/home/yhofmann/git/grand_tour_dataset/clean_construction_da
 INPUT_BAG = None
 OUTPUT_BAG = None
 
+#detection of missing header timetamps
+EPOCH_2000_NS = 946_684_800_000_000_000   # 2000-01-01
+EPOCH_2100_NS = 4_102_444_800_000_000_000 # 2100-01-01
+
+def pick_timestamp_ns(msg, bag_t_ns: int, topic: str) -> int:
+    """
+    Use header time if present and plausible (between 2000 and 2100),
+    otherwise fall back to bag record time.
+    """
+    try:
+        hdr = getattr(msg, "header", None)
+        if hdr is not None and hasattr(hdr, "stamp"):
+            ts = int(hdr.stamp.sec) * 1_000_000_000 + int(hdr.stamp.nanosec)
+            if EPOCH_2000_NS <= ts <= EPOCH_2100_NS:
+                return ts
+            else:
+                print(f"[TIME WARNING] Header stamp for topic '{topic}' is {ts} ns "
+                      f"({hdr.stamp.sec}.{hdr.stamp.nanosec}) — outside plausible range. Using bag time instead.")
+                return int(bag_t_ns)
+    except Exception as e:
+        print(f"[TIME WARNING] Could not read header stamp for topic '{topic}': {e}. Using bag time.")
+    return int(bag_t_ns)
+
+
 # Automatic topic detection is enabled - no need to specify topics manually
 
 bridge = CvBridge()
@@ -53,9 +77,13 @@ def to_mono8(img_msg):
 def import_msg_class(ros_type: str):
     # ros_type like 'sensor_msgs/msg/Image'
     pkg, _, rest = ros_type.partition('/')
-    mod = importlib.import_module(pkg + '.msg')
-    cls_name = rest.split('/')[-1]
-    return getattr(mod, cls_name)
+    try:
+        mod = importlib.import_module(pkg + '.msg')
+        cls_name = rest.split('/')[-1]
+        return getattr(mod, cls_name)
+    except (ImportError, AttributeError) as e:
+        # Return None if the package or message type doesn't exist
+        return None
 
 
 def uncompress_image(compressed_img_msg):
@@ -153,6 +181,14 @@ def main(input_bag, output_bag):
                 type='sensor_msgs/msg/Image',  # Always Image for uncompressed
                 serialization_format='cdr'
             ))
+            continue  # Skip creating the compressed topic
+        
+        # Check if we can import this message type before creating the topic
+        msg_cls = import_msg_class(t.type)
+        if msg_cls is None:
+            # Skip topics we can't deserialize
+            continue
+            
         # Create the original topic too (for non-image messages)
         writer.create_topic(TopicMetadata(
             name=t.name,
@@ -162,6 +198,10 @@ def main(input_bag, output_bag):
     metadata = reader.get_metadata()
     total_messages = metadata.message_count
 
+    # Keep track of topics without headers to avoid repeated warnings
+    skipped_topics = set()
+    # Keep track of topics with missing message definitions
+    missing_msg_types = set()
 
     # Stream through and write with original timestamps
     with tqdm(total=total_messages, desc="Processing bag messages") as pbar:
@@ -169,8 +209,24 @@ def main(input_bag, output_bag):
         while reader.has_next():
             topic, data, t = reader.read_next()
             ros_type = type_map[topic]
+            
+            # Try to import message class if not already cached
             if ros_type not in msg_cls_cache:
-                msg_cls_cache[ros_type] = import_msg_class(ros_type)
+                msg_cls = import_msg_class(ros_type)
+                if msg_cls is None:
+                    # Mark this type as missing and skip all messages of this type
+                    if ros_type not in missing_msg_types:
+                        print(f"[SKIP] Cannot import message type '{ros_type}' for topic '{topic}', skipping all messages of this type")
+                        missing_msg_types.add(ros_type)
+                    pbar.update(1)
+                    continue
+                msg_cls_cache[ros_type] = msg_cls
+            
+            # Skip if this message type couldn't be imported
+            if ros_type in missing_msg_types:
+                pbar.update(1)
+                continue
+                
             MsgType = msg_cls_cache[ros_type]
             msg = deserialize_message(data, MsgType)
 
@@ -182,17 +238,40 @@ def main(input_bag, output_bag):
                         # Then convert to mono8 using existing function
                         if uncompressed_msg.encoding != 'mono8':
                             uncompressed_msg = to_mono8(uncompressed_msg)
+                   # Write uncompressed to new topic using header timestamp
+                        timestamp_ns = pick_timestamp_ns(uncompressed_msg, t, topic_remapping[topic])
+                        writer.write(topic_remapping[topic], serialize_message(uncompressed_msg), timestamp_ns)
                     except Exception as e:
                         print(f"[WARN] uncompress/convert failed on {topic} @ {t}: {e} (keeping original)")
                         continue  # Skip this message if conversion fails
-                    
-                    # Write uncompressed to new topic
-                    writer.write(topic_remapping[topic], 
-                                serialize_message(uncompressed_msg), 
-                                int(uncompressed_msg.header.stamp.sec * 1e9 + uncompressed_msg.header.stamp.nanosec))
+                # Skip writing the compressed image to output bag
+                continue  # Skip to next message
 
-            writer.write(topic, serialize_message(msg), int(msg.header.stamp.sec * 1e9 + msg.header.stamp.nanosec))
+            # Check if message has header for timestamp
+            if hasattr(msg, 'header') and hasattr(msg.header, 'stamp'):
+                # Use header timestamp for messages that have it
+                ts_ns = pick_timestamp_ns(msg, t, topic)
+                writer.write(topic, serialize_message(msg), ts_ns)
+            else:
+                # Skip messages without headers and print warning (only once per topic)
+                if topic not in skipped_topics:
+                    print(f"[SKIP] Topic '{topic}' (type: {ros_type}) has no header timestamp, skipping all messages from this topic")
+                    skipped_topics.add(topic)
+                continue
             pbar.update(1)
+    
+    # Print summary of skipped topics
+    if skipped_topics:
+        print(f"\nSkipped {len(skipped_topics)} topic(s) without header timestamps:")
+        for topic in sorted(skipped_topics):
+            topic_type = type_map.get(topic, "unknown")
+            print(f"  - {topic} ({topic_type})")
+    
+    # Print summary of missing message types
+    if missing_msg_types:
+        print(f"\nSkipped {len(missing_msg_types)} message type(s) due to missing package definitions:")
+        for msg_type in sorted(missing_msg_types):
+            print(f"  - {msg_type}")
 
     print(f"Done. New bag: {output_bag}")
 
